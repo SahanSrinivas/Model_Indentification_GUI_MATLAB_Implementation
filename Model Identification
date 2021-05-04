@@ -1,0 +1,544 @@
+%%Model Identification GUI tool%
+
+%%Implemented by Srinivas Sahan Kolluri
+
+%%Using Bump Test Model can be identified using System Identification Functions
+
+%%The Main identification models include
+%%Process Models
+%%Transfer Function Models
+%%TF to SS models
+%%Advance distrubance models namley ARMA1 and ARMA2
+
+
+function varargout = Model_Identification(varargin)
+% MODEL_IDENTIFICATION MATLAB code for Model_Identification.fig
+%      MODEL_IDENTIFICATION, by itself, creates a new MODEL_IDENTIFICATION or raises the existing
+%      singleton*.
+%
+%      H = MODEL_IDENTIFICATION returns the handle to a new MODEL_IDENTIFICATION or the handle to
+%      the existing singleton*.
+%
+%      MODEL_IDENTIFICATION('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in MODEL_IDENTIFICATION.M with the given input arguments.
+%
+%      MODEL_IDENTIFICATION('Property','Value',...) creates a new MODEL_IDENTIFICATION or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before Model_Identification_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to Model_Identification_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help Model_Identification
+
+% Last Modified by GUIDE v2.5 17-Apr-2020 02:24:21
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @Model_Identification_OpeningFcn, ...
+                   'gui_OutputFcn',  @Model_Identification_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before Model_Identification is made visible.
+function Model_Identification_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to Model_Identification (see VARARGIN)
+
+% Choose default command line output for Model_Identification
+handles.output = hObject;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% UIWAIT makes Model_Identification wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+
+% --- Outputs from this function are returned to the command line.
+function varargout = Model_Identification_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on button press in pushbuttonLoadXLS.
+function pushbuttonLoadXLS_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbuttonLoadXLS (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+[filename,pathname] = uigetfile({'*.xlsm'; '*.xls'; '*xlsx'});
+    if (any(filename == 0) && any(pathname == 0))     
+        errordlg('Data Set is not Selected','Can Not Proceed Further'); 
+    else
+    Data = strcat(pathname,filename);
+    set(handles.LocationText, 'string', Data);
+    handles.Filename1 = Data;
+    guidata(hObject, handles)
+
+    setPopupmenuString(handles.popupmenuX, eventdata, handles)
+    setPopupmenuString(handles.popupmenuY, eventdata, handles)
+    set(handles.popupmenuX,'callback','Model_Identification(''updateAxes'',gcbo,[],guidata(gcbo))')
+    set(handles.popupmenuY,'callback','Model_Identification(''updateAxes'',gcbo,[],guidata(gcbo))')
+    set(handles.SystIdent,'callback','Model_Identification(''updateAxes'',gcbo,[],guidata(gcbo))')
+    end
+
+function setPopupmenuString(hObject, eventdata, handles)
+Data = handles.Filename1;
+[Numbers, colNames] = xlsread(Data);
+set(hObject, 'string', colNames);
+
+
+function [x,y] = readExcelColumns(Data, xColNum, yColNum)
+a = xlsread(Data);
+x = a(:,xColNum);
+y = a(:,yColNum);
+
+function [x1,y1] = readExcelColumns1(Data, xColNum1, yColNum1)
+a = xlsread(Data);
+x1 = a(:,xColNum1);
+y1 = a(:,yColNum1);
+
+function updateAxes(hObject, eventdata, handles)
+xColNum = get(handles.popupmenuX, 'value');
+yColNum = get(handles.popupmenuY, 'value');
+Data = handles.Filename1;
+
+[x,y] = readExcelColumns(Data, xColNum, yColNum);
+plot(handles.axes1, y);
+plot(handles.axes2, x);
+
+flagWantsIdentify = ...
+    get(handles.SystIdent, 'value');
+if flagWantsIdentify
+a1 = get(handles.SampleTime, 'String');
+SampTime = str2num(a1);
+if isempty(SampTime)
+    errordlg('Enter Sample Time','Error')
+else
+SystemIDData = iddata(x,y,SampTime);  
+SystemIDData = detrend(SystemIDData);
+Mod_Sel_Str = {'Select Model Dynamics'};
+Model_Type = {'Without Delay';'With Delay';'Dual Model'};
+result = listdlg('PromptString',Mod_Sel_Str,'ListSize',[100 100], 'ListString',Model_Type,'SelectionMode','single');
+switch result
+    case 1
+type = 'P1';
+sysP1 = procest(SystemIDData,type);
+compare(SystemIDData,sysP1)
+m = pem(SystemIDData,sysP1);
+%G_Ident = sysP1D.Kp;
+%T_Ident = sysP1D.Tp1;
+%TD_Ident = sysP1D.Td;
+%Gain = evalc('G_Ident');
+%Time_Constant = evalc('T_Ident');
+%Time_Delay = evalc('TD_Ident');
+Model_WithoutDelay=evalc('m');
+set(handles.answer_statictext,'String',Model_WithoutDelay);
+
+case 2
+type = 'P1D';
+sysP1D = procest(SystemIDData,type);
+compare(SystemIDData,sysP1D)
+m_Delay = pem(SystemIDData,sysP1D);
+%G_Ident = sysP1D.Kp;
+%T_Ident = sysP1D.Tp1;
+%TD_Ident = sysP1D.Td;
+%Gain = evalc('G_Ident');
+%Time_Constant = evalc('T_Ident');
+%Time_Delay = evalc('TD_Ident');
+Model_WithDelay=evalc('m_Delay');
+set(handles.answer_statictext,'String',Model_WithDelay);
+
+case 3
+type = 'P2D';
+sysP2D = procest(SystemIDData,type);
+compare(SystemIDData,sysP2D)
+m_Dual = pem(SystemIDData,sysP2D);
+%G_Ident = sysP1D.Kp;
+%T_Ident = sysP1D.Tp1;
+%TD_Ident = sysP1D.Td;
+%Gain = evalc('G_Ident');
+%Time_Constant = evalc('T_Ident');
+%Time_Delay = evalc('TD_Ident');
+Model_Dual=evalc('m_Dual');
+set(handles.answer_statictext,'String',Model_Dual);
+
+end
+ dlgTitle    = 'Regressive Model';
+ dlgQuestion = 'Do you wish to perform Regressive Model';
+ 
+ choice = questdlg(dlgQuestion,dlgTitle,'Yes', 'No', 'Yes');
+ if strcmpi(choice, 'Yes')
+ 
+Mod_Sel_Str = {'Select Model'};
+Model_Type = {'Model 1';'Model 2'};
+result_Mod = listdlg('PromptString',Mod_Sel_Str,'ListSize',[100 100], 'ListString',Model_Type,'SelectionMode','single');
+switch result_Mod
+case 1
+opt = procestOptions('DisturbanceModel','ARMA1');
+sysP1_new = procest(SystemIDData,type,opt);
+compare(SystemIDData,sysP1_new)
+m_res = pem(SystemIDData,sysP1_new);
+Model1_WithoutDelay_Regressive=evalc('m_res');
+set(handles.answer_statictext,'String',Model1_WithoutDelay_Regressive);
+case 2
+opt = procestOptions('DisturbanceModel','ARMA2');
+sysP2_new = procest(SystemIDData,type,opt);
+compare(SystemIDData,sysP2_new)
+m_res1 = pem(SystemIDData,sysP2_new);
+Model2_WithoutDelay_Regressive=evalc('m_res1');
+set(handles.answer_statictext,'String',Model2_WithoutDelay_Regressive);
+end
+ end
+end
+ end
+
+
+
+% --- Executes on selection change in popupmenuY.
+function popupmenuY_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenuY (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns popupmenuY contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from popupmenuY
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenuY_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenuY (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in popupmenuX.
+function popupmenuX_Callback(hObject, eventdata, handles)
+% hObject    handle to popupmenuX (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns popupmenuX contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from popupmenuX
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenuX_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenuX (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function SampleTime_Callback(hObject, eventdata, handles)
+% hObject    handle to SampleTime (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of SampleTime as text
+%        str2double(get(hObject,'String')) returns contents of SampleTime as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function SampleTime_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to SampleTime (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in SystIdent.
+function SystIdent_Callback(hObject, eventdata, handles)
+% hObject    handle to SystIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of SystIdent
+
+
+% --- Executes on button press in TFIdent.
+function TFIdent_Callback(hObject, eventdata, handles)
+% hObject    handle to TFIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of TFIdent
+
+
+% --- Executes on button press in pushbutton2.
+function pushbutton2_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in pushbutton3.
+function pushbutton3_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in pushbutton4.
+function pushbutton4_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in pushbutton5.
+function pushbutton5_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in Reset.
+function Reset_Callback(hObject, eventdata, handles)
+% hObject    handle to Reset (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+cla(handles.axes3, 'reset')
+set(handles.answer_statictext,'String','');
+guidata(hObject, handles)
+
+
+% --- Executes on button press in TTFIdent.
+function TTFIdent_Callback(hObject, eventdata, handles)
+% hObject    handle to TTFIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of TTFIdent
+
+
+% --- Executes on button press in SSEst.
+function SSEst_Callback(hObject, eventdata, handles)
+% hObject    handle to SSEst (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of SSEst
+
+
+% --- Executes on selection change in SysModelIdent.
+function SysModelIdent_Callback(hObject, eventdata, handles)
+% hObject    handle to SysModelIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns SysModelIdent contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from SysModelIdent
+        
+
+% --- Executes during object creation, after setting all properties.
+function SysModelIdent_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to SysModelIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in SSIdent.
+function SSIdent_Callback(hObject, eventdata, handles)
+% hObject    handle to SSIdent (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of SSIdent
+
+
+% --- Executes when selected object is changed in ModelIdentButton.
+function ModelIdentButton_SelectionChangedFcn(hObject, eventdata, handles)
+% hObject    handle to the selected object in ModelIdentButton 
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+switch(get(eventdata.NewValue, 'Tag'));
+    case 'TFIdent'
+    msgbox(['Use the Dataset file with 1st Column as output and 2nd Column as Input']); %#ok<NBRAK>
+    pause on;
+    pause (5);
+    pause off;
+    [filename1,pathname1] = uigetfile('*.xlsm', '*.xls');   
+    if (any(filename1 == 0) && any(pathname1 == 0)) 
+    errordlg('Data Set is not Selected','Error');
+    else
+    DTF = strcat(pathname1,filename1); 
+    DTF = xlsread(DTF);
+    
+    D = detrend(DTF);
+    Options = tfestOptions;               
+    Options.Display = 'on';               
+    Options.WeightingFilter = [];
+    
+    prompt = {'Enter The Number of Poles:'};
+    dlgtitle = 'Poles';
+    dims = [1 100];
+    definput = {'','hsv'};
+    P = inputdlg(prompt,dlgtitle,dims,definput);
+    
+    if isempty(P)    
+    errordlg('Poles For Transfer Function Identification is Discarded','Can Not Proceed Further')
+    else
+        
+    Pole = str2num(P{1}); %#ok<ST2NM>
+    
+    
+    prompt = {'Enter The Numbe of Zeros:'};
+    dlgtitle1 = 'Zeros';
+    dims1 = [1 100];
+    definput1 = {'','hsv'};
+    Z = inputdlg(prompt,dlgtitle1,dims1,definput1);
+    
+    if isempty(Z)    
+    errordlg('Poles For Transfer Function Identification is Discarded','Can Not Proceed Further')
+    else
+    
+    Zr = str2num(Z{1});
+    
+    
+    transFun = tfest(D, Pole, Zr, Options);
+    TF_Ident=evalc('transFun');
+    set(handles.answer_statictext,'String',TF_Ident);
+    end
+    end
+    end
+    
+    case 'StateSpaceIdent'
+    
+    prompt = {'Enter Gain:'};
+    dlgtitle = 'Input Gain';
+    dims = [1 100];
+    definput = {'','hsv'};
+    G = inputdlg(prompt,dlgtitle,dims,definput);
+
+    if isempty(G)    
+    errordlg('Gain For State Space Estimation is Discarded','Can Not Proceed Further')
+    else
+    
+    Gain = str2num(G{1});
+
+    prompt = {'Enter Time Constant:'};
+    dlgtitle1 = 'Input Time Constant';
+    dims1 = [1 100];
+    definput1 = {'','hsv'};
+    TC = inputdlg(prompt,dlgtitle1,dims1,definput1);
+    
+    if isempty(TC)    
+    errordlg('Time Constant For State Space Estimation is Discarded','Can Not Proceed Further')
+    else
+    
+    TimeConst = str2num(TC{1});
+
+    denum1 = ones(1,2);
+    c = TimeConst;
+    denum1(1) = c;
+
+    num = Gain;
+    den = denum1;
+    TransFun=tf(num,den);
+    T=evalc('TransFun');
+    set(handles.answer_statictext,'String',T);
+    [A,B,C,D] = tf2ss(num,den);
+    msgbox(['The Value of Matrix A: ' num2str(A)]);
+    msgbox(['The Value of Matrix B: ' num2str(C)]);
+    msgbox(['The Value of Matrix C: ' num2str(B)]);
+    msgbox(['The Value of Matrix D: ' num2str(D)]); 
+    end
+    end
+       
+    case 'SSIdent'
+     
+    msgbox(['Use the Dataset file with 1st Column as output and 2nd Column as Input']); %#ok<NBRAK>
+    pause on;
+    pause (5);
+    pause off;
+    [filename2,pathname2] = uigetfile('*.xlsm', '*.xls');
+    
+    if (any(filename2 == 0) && any(pathname2 == 0)) 
+    
+    errordlg('Data Set is not Selected','Error');
+    
+    else
+
+    DSS = strcat(pathname2,filename2); 
+    DSS = xlsread(DSS);
+    
+    Data_StateSpace = detrend(DSS);
+
+    prompt_SS = {'Enter The Order of State Space Model:'};
+    dlgtitle_SS = 'Model Order';
+    dims_SS = [1 100];
+    definput_SS = {'','hsv'};
+    Order = inputdlg(prompt_SS,dlgtitle_SS,dims_SS,definput_SS);
+    
+    if isempty(Order)    
+    errordlg('Order For State Space Estimation is Discarded','Can Not Proceed Further')
+    else
+        
+    Order_1 = str2num(Order{1}); %#ok<ST2NM>
+    
+    StateSpace_Estimation = ssest(Data_StateSpace,Order_1);
+    StateSpace_Ident=evalc('StateSpace_Estimation');
+    
+    set(handles.answer_statictext,'String',StateSpace_Ident);
+    
+    end
+    end
+        
+    end
+
+
+% --- Executes when selected object is changed in Model_Selection.
+function Model_Selection_SelectionChangedFcn(hObject, eventdata, handles)
+% hObject    handle to the selected object in Model_Selection 
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
